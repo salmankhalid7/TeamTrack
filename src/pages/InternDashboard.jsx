@@ -1,7 +1,7 @@
 // src/pages/InternDashboard.jsx
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom"; // for quizzes navigation
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/useAuth";
 import { useLayout } from "../context/LayoutContext";
@@ -92,7 +92,7 @@ import {
   ComposedChart,
 } from "recharts";
 
-// ─── Error message mapper (inlined) ──────────────────────────
+// ─── Error message mapper ──────────────────────────────────────
 function getAttendanceErrorMessage(error) {
   const message = error?.message || "";
 
@@ -546,6 +546,7 @@ function InternDashboardOverview({
   attendanceLoading,
   attendanceError,
   refetchTasksAndAttendance,
+  onSwitchToTasks, // new prop
 }) {
   // ── Real data for charts ──
 
@@ -924,127 +925,76 @@ function InternDashboardOverview({
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Today's Tasks Summary (simplified) */}
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-700">Today's Tasks</h3>
+              <Button variant="ghost" size="sm" onClick={onSwitchToTasks}>
+                View All Tasks →
+              </Button>
+            </div>
+            {todayTasks.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <ClipboardList className="w-12 h-12 mx-auto mb-3" />
+                <p>No tasks assigned for today.</p>
+                <p className="text-sm text-gray-300 mt-1">
+                  Check back tomorrow
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {todayTasks.slice(0, 5).map((task) => {
+                  const submission = submissionsByTaskId[task.id];
+                  let status = "Not Submitted";
+                  let variant = "default";
+                  if (submission) {
+                    if (submission.status === "completed") {
+                      status = "Completed";
+                      variant = "success";
+                    } else if (submission.status === "pending") {
+                      status = "Pending Review";
+                      variant = "warning";
+                    } else if (submission.status === "not_completed") {
+                      status = "Not Completed";
+                      variant = "danger";
+                    }
+                  }
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs text-gray-400">
+                          Day {task.day_number}
+                        </span>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {task.title}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={variant}
+                        size="sm"
+                        className="ml-2 shrink-0"
+                      >
+                        {status}
+                      </Badge>
+                    </div>
+                  );
+                })}
+                {todayTasks.length > 5 && (
+                  <div className="text-center text-sm text-gray-400 pt-2">
+                    + {todayTasks.length - 5} more tasks
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
           <PastTasksSection
             tasks={pastTasks}
             submissionsByTaskId={submissionsByTaskId}
           />
-
-          {todayTasks.length === 0 ? (
-            <Card className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ClipboardList className="w-8 h-8 text-[#2b2d42] text-opacity-30" />
-              </div>
-              <p className="text-[#2b2d42] text-opacity-50">
-                No tasks assigned for today.
-              </p>
-              <p className="text-sm text-[#2b2d42] text-opacity-30 mt-2">
-                Check back tomorrow for new tasks
-              </p>
-            </Card>
-          ) : (
-            todayTasks.map((task) => {
-              const submission = submissionsByTaskId[task.id];
-              return (
-                <Card
-                  key={task.id}
-                  className={hasNewTask ? "border-l-4 border-l-green-500" : ""}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="info" size="sm">
-                          Day {task.day_number}
-                        </Badge>
-                        {hasNewTask && (
-                          <Badge
-                            variant="success"
-                            size="sm"
-                            className="animate-pulse"
-                          >
-                            <Bell className="w-3 h-3 inline mr-1" /> New!
-                          </Badge>
-                        )}
-                      </div>
-                      <h2 className="text-xl font-semibold text-[#2b2d42]">
-                        {task.title}
-                      </h2>
-                    </div>
-                    <span className="text-sm text-[#2b2d42] text-opacity-50 whitespace-nowrap ml-4">
-                      {task.estimated_hours}h estimated
-                    </span>
-                  </div>
-
-                  {task.admin_notes && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h4 className="font-semibold text-[#2b2d42] mb-1">
-                        <AlertCircle className="w-4 h-4 inline mr-1" /> Special
-                        Note from Admin
-                      </h4>
-                      <p className="text-sm text-blue-800 whitespace-pre-wrap">
-                        {task.admin_notes}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="prose prose-sm max-w-none text-[#2b2d42] text-opacity-90 mb-6">
-                    <p className="whitespace-pre-wrap">{task.description}</p>
-                  </div>
-
-                  {task.learning_objectives?.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="font-semibold text-[#2b2d42] mb-2">
-                        Learning Objectives
-                      </h3>
-                      <ul className="space-y-1">
-                        {task.learning_objectives.map((obj, i) => (
-                          <li
-                            key={i}
-                            className="flex items-start text-sm text-[#2b2d42] text-opacity-80"
-                          >
-                            <CheckCircle2 className="w-4 h-4 text-[#0080c8] mr-2 mt-0.5 flex-shrink-0" />
-                            {obj}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {task.resources?.length > 0 && (
-                    <div className="mb-6 p-4 bg-[#f8f7f9] rounded-lg">
-                      <h3 className="font-semibold text-[#2b2d42] mb-2">
-                        Resources
-                      </h3>
-                      <ul className="space-y-1">
-                        {task.resources.map((resource, i) => (
-                          <li key={i}>
-                            <a
-                              href={resource}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-[#0080c8] hover:underline flex items-center"
-                            >
-                              <FileText className="w-4 h-4 mr-1" />
-                              {resource}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {submission ? (
-                    <SubmissionStatus submission={submission} />
-                  ) : (
-                    <SubmissionSection task={task} user={user} />
-                  )}
-                </Card>
-              );
-            })
-          )}
-
-          <div className="mt-8">
-            <InternQuizzesView />
-          </div>
         </div>
 
         <div className="space-y-6">
@@ -1167,7 +1117,7 @@ function InternDashboardOverview({
   );
 }
 
-// ─── 8. TASKS TAB ──────────────────────────────────────────────
+// ─── 8. TASKS TAB (improved with expandable list) ──────────────
 function InternTasksView({ profile, user }) {
   const { data: todayTasks = [], isLoading: todayLoading } = useTodayTasks();
   const getDayNumber = useCallback(() => {
@@ -1203,6 +1153,17 @@ function InternTasksView({ profile, user }) {
     return unique.sort((a, b) => b.day_number - a.day_number);
   }, [todayTasks, pastTasks]);
 
+  const [expandedTasks, setExpandedTasks] = useState(new Set());
+
+  const toggleExpand = (taskId) => {
+    setExpandedTasks((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) newSet.delete(taskId);
+      else newSet.add(taskId);
+      return newSet;
+    });
+  };
+
   const isLoading = todayLoading || pastLoading;
   if (isLoading) return <PageLoading />;
   if (allTasks.length === 0) {
@@ -1223,9 +1184,16 @@ function InternTasksView({ profile, user }) {
           {allTasks.length} total
         </Badge>
       </div>
-      <div className="space-y-4">
+
+      <div className="space-y-3">
         {allTasks.map((task) => {
           const submission = submissionsByTaskId[task.id];
+          const isToday = task.day_number === todayDayNumber;
+          const isExpanded = expandedTasks.has(task.id);
+
+          const canSubmit =
+            !submission || submission.status === "not_completed";
+
           let statusBadge = null;
           if (submission) {
             if (submission.status === "completed")
@@ -1237,15 +1205,21 @@ function InternTasksView({ profile, user }) {
           } else {
             statusBadge = <Badge variant="default">Not Submitted</Badge>;
           }
-          const isToday = task.day_number === todayDayNumber;
+
           return (
             <Card
               key={task.id}
-              className={isToday ? "border-l-4 border-l-blue-500" : ""}
+              className={`transition-all duration-200 ${
+                isToday ? "border-l-4 border-l-blue-500" : ""
+              } ${isExpanded ? "shadow-md" : "hover:shadow-sm"}`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+              {/* Compact header – always visible */}
+              <div
+                className="flex items-start justify-between cursor-pointer"
+                onClick={() => toggleExpand(task.id)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-[#0080c8] bg-[#92dce5] bg-opacity-20 px-2 py-0.5 rounded">
                       Day {task.day_number}
                     </span>
@@ -1259,21 +1233,102 @@ function InternTasksView({ profile, user }) {
                         Approved
                       </Badge>
                     )}
+                    <span className="ml-2 text-sm text-gray-400">
+                      {task.estimated_hours}h
+                    </span>
                   </div>
-                  <h3 className="font-semibold text-gray-800">{task.title}</h3>
+                  <h3 className="font-semibold text-gray-800 truncate">
+                    {task.title}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  {statusBadge}
+                  <Button
+                    size="sm"
+                    variant={isExpanded ? "secondary" : "primary"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpand(task.id);
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    {isExpanded ? "Close" : "Start"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Expanded content */}
+              {isExpanded && (
+                <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
                   {task.description && (
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
                       {task.description}
                     </p>
                   )}
-                </div>
-                <div className="flex items-center gap-2 ml-4">
-                  {statusBadge}
-                </div>
-              </div>
-              {submission && submission.submitted_at && (
-                <div className="mt-2 text-xs text-gray-400">
-                  Submitted: {formatDate(submission.submitted_at)}
+
+                  {task.admin_notes && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-semibold text-gray-700 mb-1">
+                        <AlertCircle className="w-4 h-4 inline mr-1" /> Special
+                        Note
+                      </h4>
+                      <p className="text-sm text-blue-800 whitespace-pre-wrap">
+                        {task.admin_notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {task.learning_objectives?.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Learning Objectives
+                      </h4>
+                      <ul className="space-y-1">
+                        {task.learning_objectives.map((obj, i) => (
+                          <li
+                            key={i}
+                            className="flex items-start text-sm text-gray-600"
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-[#0080c8] mr-2 mt-0.5 flex-shrink-0" />
+                            {obj}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {task.resources?.length > 0 && (
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Resources
+                      </h4>
+                      <ul className="space-y-1">
+                        {task.resources.map((resource, i) => (
+                          <li key={i}>
+                            <a
+                              href={resource}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#0080c8] hover:underline flex items-center"
+                            >
+                              <FileText className="w-4 h-4 mr-1" />
+                              {resource}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {submission ? (
+                    <SubmissionStatus submission={submission} />
+                  ) : canSubmit ? (
+                    <SubmissionSection task={task} user={user} />
+                  ) : (
+                    <div className="text-sm text-gray-400 italic">
+                      This task is not available for submission.
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -1300,19 +1355,25 @@ function InternQuizzesView() {
   const completedAttempts = assignedQuizzes.filter(
     (q) =>
       q.attempt &&
-      (q.attempt.status === "submitted" || q.attempt.status === "auto_submitted")
+      (q.attempt.status === "submitted" ||
+        q.attempt.status === "auto_submitted"),
   ).length;
   const inProgressAttempts = assignedQuizzes.filter(
-    (q) => q.attempt && q.attempt.status === "in_progress"
+    (q) => q.attempt && q.attempt.status === "in_progress",
   ).length;
 
   const attemptsWithScores = assignedQuizzes
-    .filter((q) => q.attempt && q.attempt.score !== undefined && q.attempt.score !== null)
+    .filter(
+      (q) =>
+        q.attempt && q.attempt.score !== undefined && q.attempt.score !== null,
+    )
     .map((q) => q.attempt);
   const avgScore = attemptsWithScores.length
     ? Math.round(
-        attemptsWithScores.reduce((acc, a) => acc + (a.score / a.total_marks) * 100, 0) /
-          attemptsWithScores.length
+        attemptsWithScores.reduce(
+          (acc, a) => acc + (a.score / a.total_marks) * 100,
+          0,
+        ) / attemptsWithScores.length,
       )
     : 0;
 
@@ -1472,8 +1533,8 @@ function InternQuizzesView() {
                       entry.percentage >= 80
                         ? "#00b894"
                         : entry.percentage >= 60
-                        ? "#f7b731"
-                        : "#e17055"
+                          ? "#f7b731"
+                          : "#e17055"
                     }
                   />
                 ))}
@@ -1646,7 +1707,9 @@ function InternAttendanceView({ user }) {
       else if (record.status === "late") dateMap[date].late++;
       else if (record.status === "absent") dateMap[date].absent++;
     });
-    return Object.values(dateMap).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return Object.values(dateMap).sort(
+      (a, b) => new Date(a.date) - new Date(b.date),
+    );
   }, [attendanceHistory]);
 
   const statusDistribution = useMemo(() => {
@@ -1697,7 +1760,10 @@ function InternAttendanceView({ user }) {
                 <YAxis stroke="#888" fontSize={12} allowDecimals={false} />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value)}
-                  formatter={(value, name) => [value, name.charAt(0).toUpperCase() + name.slice(1)]}
+                  formatter={(value, name) => [
+                    value,
+                    name.charAt(0).toUpperCase() + name.slice(1),
+                  ]}
                 />
                 <Legend />
                 <Bar dataKey="present" stackId="a" fill="#00b894" />
@@ -1821,18 +1887,24 @@ function InternProfileView() {
 
   const disciplineName = useMemo(() => {
     if (!profile?.discipline_id) return null;
-    const discipline = disciplines.find(d => d.id === profile.discipline_id);
+    const discipline = disciplines.find((d) => d.id === profile.discipline_id);
     return discipline?.name || profile.discipline_id;
   }, [disciplines, profile?.discipline_id]);
 
   const startDate = profile?.start_date || profile?.created_at;
   const totalSubmissions = mySubmissions.length;
-  const completedSubmissions = mySubmissions.filter(s => s.status === 'completed').length;
-  const pendingSubmissions = mySubmissions.filter(s => s.status === 'pending').length;
+  const completedSubmissions = mySubmissions.filter(
+    (s) => s.status === "completed",
+  ).length;
+  const pendingSubmissions = mySubmissions.filter(
+    (s) => s.status === "pending",
+  ).length;
 
   const latestEval = evaluations[0];
   const overallScore = latestEval ? Math.round(latestEval.total_score) : 0;
-  const attendanceScore = latestEval ? Math.round(latestEval.attendance_score) : 0;
+  const attendanceScore = latestEval
+    ? Math.round(latestEval.attendance_score)
+    : 0;
   const taskScore = latestEval ? Math.round(latestEval.task_score) : 0;
 
   return (
@@ -1843,15 +1915,20 @@ function InternProfileView() {
             {profile?.full_name?.[0]?.toUpperCase() || "U"}
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <h2 className="text-2xl font-bold text-gray-800">{profile?.full_name}</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {profile?.full_name}
+            </h2>
             <p className="text-gray-500">{profile?.email}</p>
             <div className="flex flex-wrap items-center gap-3 mt-2">
-              <Badge variant="info">{profile?.role?.toUpperCase() || "Intern"}</Badge>
+              <Badge variant="info">
+                {profile?.role?.toUpperCase() || "Intern"}
+              </Badge>
               <Badge variant="success">
                 {disciplineName || "No Discipline"}
               </Badge>
               <span className="text-sm text-gray-400">
-                • Joined {profile?.created_at ? formatDate(profile.created_at) : "N/A"}
+                • Joined{" "}
+                {profile?.created_at ? formatDate(profile.created_at) : "N/A"}
               </span>
             </div>
           </div>
@@ -1863,7 +1940,9 @@ function InternProfileView() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 mb-1">Total Submissions</p>
-              <p className="text-2xl font-bold text-gray-800">{totalSubmissions}</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {totalSubmissions}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
               <FileText className="w-5 h-5 text-blue-600" />
@@ -1874,7 +1953,9 @@ function InternProfileView() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 mb-1">Completed</p>
-              <p className="text-2xl font-bold text-green-600">{completedSubmissions}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {completedSubmissions}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
@@ -1885,7 +1966,9 @@ function InternProfileView() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 mb-1">Pending Review</p>
-              <p className="text-2xl font-bold text-yellow-600">{pendingSubmissions}</p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {pendingSubmissions}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
               <Clock3 className="w-5 h-5 text-yellow-600" />
@@ -1896,7 +1979,9 @@ function InternProfileView() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 mb-1">Overall Score</p>
-              <p className="text-2xl font-bold text-purple-600">{overallScore}%</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {overallScore}%
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
               <Award className="w-5 h-5 text-purple-600" />
@@ -1907,20 +1992,26 @@ function InternProfileView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <h3 className="font-semibold text-gray-800 mb-4">Personal Information</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">
+            Personal Information
+          </h3>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
               <User className="w-5 h-5 text-gray-500" />
               <div>
                 <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium text-gray-800">{profile?.full_name || "—"}</p>
+                <p className="font-medium text-gray-800">
+                  {profile?.full_name || "—"}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
               <Mail className="w-5 h-5 text-gray-500" />
               <div>
                 <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium text-gray-800">{profile?.email || "—"}</p>
+                <p className="font-medium text-gray-800">
+                  {profile?.email || "—"}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
@@ -1945,13 +2036,17 @@ function InternProfileView() {
         </Card>
 
         <Card>
-          <h3 className="font-semibold text-gray-800 mb-4">Performance Summary</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">
+            Performance Summary
+          </h3>
           {latestEval ? (
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-500">Attendance Score</span>
-                  <span className="font-medium text-gray-800">{attendanceScore}%</span>
+                  <span className="font-medium text-gray-800">
+                    {attendanceScore}%
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
@@ -1963,7 +2058,9 @@ function InternProfileView() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-500">Task Score</span>
-                  <span className="font-medium text-gray-800">{taskScore}%</span>
+                  <span className="font-medium text-gray-800">
+                    {taskScore}%
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
@@ -1975,7 +2072,9 @@ function InternProfileView() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-500">Overall Score</span>
-                  <span className="font-medium text-gray-800">{overallScore}%</span>
+                  <span className="font-medium text-gray-800">
+                    {overallScore}%
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
@@ -1987,7 +2086,10 @@ function InternProfileView() {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-500">Latest Evaluation</p>
                 <p className="font-medium text-gray-800">
-                  Week of {latestEval.week_start ? formatDate(latestEval.week_start) : "N/A"}
+                  Week of{" "}
+                  {latestEval.week_start
+                    ? formatDate(latestEval.week_start)
+                    : "N/A"}
                 </p>
               </div>
             </div>
@@ -2108,31 +2210,30 @@ export default function InternDashboard() {
     profile?.discipline_id,
   ]);
 
-const handleMarkAttendance = () => {
-  if (!user?.id) {
-    toast.error("User not found.");
-    return;
-  }
-  if (todayAttendance) {
-    toast.info(`Already marked as ${todayAttendance.status} today.`);
-    return;
-  }
-  markAttendance.mutate(
-    { internId: user.id },
-    {
-      onSuccess: (data) => {
-        toast.success(`✅ Marked as ${data.status}!`);
-        refetchAttendance();
-        refetchTasks();
-      },
-      onError: (error) => {
-        // The error.message should now be the clean one from markAttendanceViaEdge
-        const { title, description } = getAttendanceErrorMessage(error);
-        toast.error(`${title}\n${description}`);
-      },
+  const handleMarkAttendance = () => {
+    if (!user?.id) {
+      toast.error("User not found.");
+      return;
     }
-  );
-};
+    if (todayAttendance) {
+      toast.info(`Already marked as ${todayAttendance.status} today.`);
+      return;
+    }
+    markAttendance.mutate(
+      { internId: user.id },
+      {
+        onSuccess: (data) => {
+          toast.success(`✅ Marked as ${data.status}!`);
+          refetchAttendance();
+          refetchTasks();
+        },
+        onError: (error) => {
+          const { title, description } = getAttendanceErrorMessage(error);
+          toast.error(`${title}\n${description}`);
+        },
+      },
+    );
+  };
 
   const refetchTasksAndAttendance = () => {
     refetchTasks();
@@ -2199,8 +2300,13 @@ const handleMarkAttendance = () => {
             submittedCount={submittedCount}
             handleMarkAttendance={handleMarkAttendance}
             attendanceLoading={markAttendance.isPending}
-            attendanceError={markAttendance.error ? getAttendanceErrorMessage(markAttendance.error).description : null}
+            attendanceError={
+              markAttendance.error
+                ? getAttendanceErrorMessage(markAttendance.error).description
+                : null
+            }
             refetchTasksAndAttendance={refetchTasksAndAttendance}
+            onSwitchToTasks={() => setActiveItem("tasks")}
           />
         );
       case "tasks":
